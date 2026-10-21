@@ -1,0 +1,15 @@
+// Writes UICR.NFCPINS = GPIO so P0.09/P0.10 are usable, then resets. The firmware also sets it (overlay).
+connect
+mem32 0x10001200 1
+w4 0x4001E504 0x00000001
+sleep 10
+w4 0x10001200 0xFFFFFFFE
+sleep 10
+w4 0x4001E504 0x00000000
+sleep 10
+mem32 0x10001200 1
+mem32 0x10001304 1
+r
+g
+sleep 500
+exit

@@ -1,0 +1,126 @@
+// RECOVERY: retries "connect" 60x; each connect to a locked chip unsecures = MASS-ERASES it.
+// Use with the V pad held at 3.3 V (README "Recovering"). Ends by reading flash/UICR (all FF = blank, open).
+connect
+sleep 300
+connect
+sleep 300
+connect
+sleep 300
+connect
+sleep 300
+connect
+sleep 300
+connect
+sleep 300
+connect
+sleep 300
+connect
+sleep 300
+connect
+sleep 300
+connect
+sleep 300
+connect
+sleep 300
+connect
+sleep 300
+connect
+sleep 300
+connect
+sleep 300
+connect
+sleep 300
+connect
+sleep 300
+connect
+sleep 300
+connect
+sleep 300
+connect
+sleep 300
+connect
+sleep 300
+connect
+sleep 300
+connect
+sleep 300
+connect
+sleep 300
+connect
+sleep 300
+connect
+sleep 300
+connect
+sleep 300
+connect
+sleep 300
+connect
+sleep 300
+connect
+sleep 300
+connect
+sleep 300
+connect
+sleep 300
+connect
+sleep 300
+connect
+sleep 300
+connect
+sleep 300
+connect
+sleep 300
+connect
+sleep 300
+connect
+sleep 300
+connect
+sleep 300
+connect
+sleep 300
+connect
+sleep 300
+connect
+sleep 300
+connect
+sleep 300
+connect
+sleep 300
+connect
+sleep 300
+connect
+sleep 300
+connect
+sleep 300
+connect
+sleep 300
+connect
+sleep 300
+connect
+sleep 300
+connect
+sleep 300
+connect
+sleep 300
+connect
+sleep 300
+connect
+sleep 300
+connect
+sleep 300
+connect
+sleep 300
+connect
+sleep 300
+connect
+sleep 300
+connect
+sleep 300
+connect
+sleep 300
+connect
+sleep 300
+mem32 0x00000000 4
+mem32 0x10001208 1
+mem32 0x10001304 1
+exit

@@ -1,0 +1,19 @@
+// Reads chip ID (FICR), BLE address, UICR (APPROTECT, REGOUT0) and the start of flash.
+// WARNING: "connect" on a locked chip (e.g. a stock MG8) makes J-Link unsecure = MASS-ERASE it.
+connect
+// FICR: part, variant, package, RAM, flash
+mem32 0x10000100 1
+mem32 0x10000104 1
+mem32 0x10000108 1
+mem32 0x1000010C 1
+mem32 0x10000110 1
+// FICR: device ID and BLE address
+mem32 0x10000060 2
+mem32 0x100000A4 2
+// UICR: APPROTECT, bootloader address, MBR params
+mem32 0x10001208 1
+mem32 0x10001014 1
+mem32 0x10001018 1
+// Flash: vector table (fails or reads 0 if protected)
+mem32 0x00000000 4
+exit

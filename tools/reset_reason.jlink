@@ -1,0 +1,6 @@
+// Reads POWER.RESETREAS (bits: 0 pin, 1 watchdog, 2 soft, 3 lockup) and PIN_CNF of P0.04 / P0.08.
+connect
+mem32 0x40000400 1
+mem32 0x50000710 1
+mem32 0x50000720 1
+exit

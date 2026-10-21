@@ -37,10 +37,12 @@ Press the MG8 function button to rerun the search.
 | LED green | P0.06 | Active low |
 | LED blue | P0.12 | Active low |
 | Function button | P0.04 | Active low, needs the internal pull-up |
-| P0.09 / P0.10 | Held low on the board | Guessed PWRKEY / RESET transistor bases, NOT confirmed |
+| P0.09 / P0.10 | Floating (follow pull-up and pull-down) | Read "held low" early on only because the NFC function was still active. No evidence they are PWRKEY / RESET |
 | P0.30 + P1.00 | Unknown | Went low together once while probing near the TX pad |
 
 J-Link wiring (20-pin): pin 1 VTref -> V, pin 4 GND -> G, pin 7 SWDIO -> D, pin 9 SWCLK -> C. The MG8 must be powered from its own USB plug.
+
+The J-Link scripts used to find these pins (and to recover the chip) are in [tools/](tools/README.md).
 
 ## Pitfalls (each of these happened on the first unit)
 
@@ -63,5 +65,5 @@ If VDD sits at a jumping ~2.2–2.4 V and SWD is unreliable (firmware with DC/DC
 ## Status (2026-10-21)
 
 - Firmware runs stably: VDD 2.94 V, APPROTECT open, RTT logging works.
-- Modem search: with all 37 unknown pins pulled up and P0.09 / P0.10 each pulsed high for 1.2 s, no pin was ever seen driven high, so no UART pair was tried. The production board likely uses a different level shifter than the FCC test board (no TXS0108E found), and the pull-down sense may not detect its idle-high lines.
+- Modem search: with all 37 unknown pins pulled up and P0.09 / P0.10 each pulsed high for 1.2 s, no pin was ever seen driven high, so no UART pair was tried. P0.09 / P0.10 were only tried because they looked held low, which later turned out to be the NFC function; with NFC off they float like the other unknown pins. The production board likely uses a different level shifter than the FCC test board (no TXS0108E found), and the pull-down sense may not detect its idle-high lines.
 - Next: photograph both sides of the production board and the Quectel label, then measure the modem supply and VDD_EXT with a multimeter to find its power enable, PWRKEY and UART.

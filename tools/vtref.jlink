@@ -1,0 +1,5 @@
+// Reads only the target voltage (VTref). Does not connect to the chip, so it is always safe.
+st
+sleep 1000
+st
+exit

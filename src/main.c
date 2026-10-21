@@ -5,7 +5,8 @@
  *   LEDs (active low): red P0.08, green P0.06, blue P0.12
  *   Button (active low, needs pull-up): P0.04
  *   Debug pads: TX P0.13, RX P0.15
- *   P0.09 / P0.10: held low on the board, PWRKEY / RESET candidates
+ *   P0.09 / P0.10: tried as PWRKEY because they read low early on, but that was the NFC function;
+ *                  with NFCPINS = GPIO they float like the other unknown pins
  *
  * Search:
  *   1. Pull every unknown pin up, so any active-high power or level-shifter enable is on. Pins are

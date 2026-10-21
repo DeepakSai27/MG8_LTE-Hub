@@ -1,0 +1,16 @@
+// Writes UICR.REGOUT0 = 3.0 V (0xFFFFFFFC) and resets. Erased default is 1.8 V. The firmware also does this.
+connect
+mem32 0x10001304 1
+// NVMC.CONFIG = Wen
+w4 0x4001E504 0x00000001
+sleep 10
+w4 0x10001304 0xFFFFFFFC
+sleep 10
+// NVMC.CONFIG = Ren
+w4 0x4001E504 0x00000000
+sleep 10
+mem32 0x10001304 1
+r
+g
+sleep 500
+exit

@@ -1,0 +1,17 @@
+// Lights the known LEDs: red (P0.08), green (P0.06), blue (P0.12), 2 s each. All active low.
+// "connect" erases a locked chip (see identify.jlink).
+connect
+w4 0x50000508 0x00001140
+w4 0x50000718 0x00000001
+w4 0x50000720 0x00000001
+w4 0x50000730 0x00000001
+w4 0x5000050C 0x00000100
+sleep 2000
+w4 0x50000508 0x00000100
+w4 0x5000050C 0x00000040
+sleep 2000
+w4 0x50000508 0x00000040
+w4 0x5000050C 0x00001000
+sleep 2000
+w4 0x50000508 0x00001000
+exit
