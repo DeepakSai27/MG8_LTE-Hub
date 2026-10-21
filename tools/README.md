@@ -25,4 +25,6 @@ $jlink = 'C:\Program Files\SEGGER\JLink_V818\JLink.exe'
 
 `capture_pins.ps1` lists every P0 / P1 sample and the pins that read low in at least one sample.
 
+The pin scripts reconfigure every GPIO, including the LED pins, and the setting stays until the next reset. After `read_pins_pullup_pulldown.jlink` the LED pins are left with a pull-down, so the firmware's LED goes off and green glows dimly. That is not the modem. Reset or replug the MG8 to get the firmware's LEDs back.
+
 Rules for new scripts: pull-ups only on unknown pins (never push-pull drive them), never write UICR.APPROTECT.
