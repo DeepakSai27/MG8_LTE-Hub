@@ -1,0 +1,31 @@
+/*
+ * Minew MG8 on the nRF52840 DK board definition.
+ * The DK peripherals sit on pins the MG8 uses for other things (P0.06/P0.08 are LEDs),
+ * so every DK peripheral that would claim pins at boot is disabled.
+ */
+
+/ {
+	chosen {
+		/delete-property/ zephyr,console;
+		/delete-property/ zephyr,shell-uart;
+		/delete-property/ zephyr,uart-mcumgr;
+		/delete-property/ zephyr,bt-mon-uart;
+		/delete-property/ zephyr,bt-c2h-uart;
+	};
+};
+
+&uicr {
+	/delete-property/ gpio-as-nreset;
+	nfct-pins-as-gpios;
+};
+
+&uart0 { status = "disabled"; };
+&uart1 { status = "disabled"; };
+&i2c0 { status = "disabled"; };
+&spi1 { status = "disabled"; };
+&spi3 { status = "disabled"; };
+&pwm0 { status = "disabled"; };
+&qspi { status = "disabled"; };
+&adc { status = "disabled"; };
+&usbd { status = "disabled"; };
+&ieee802154 { status = "disabled"; };
