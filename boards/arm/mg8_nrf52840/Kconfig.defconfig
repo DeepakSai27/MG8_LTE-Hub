@@ -1,0 +1,11 @@
+# Minew MG8 LTE gateway
+
+if BOARD_MG8_NRF52840
+
+config BOARD
+	default "mg8_nrf52840"
+
+config BT_CTLR
+	default BT
+
+endif # BOARD_MG8_NRF52840

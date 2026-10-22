@@ -1,23 +1,40 @@
 # MG8 bring-up
 
 Bring-up firmware for running our own code on the Minew MG8 LTE gateway (nRF52840 + Quectel EG916Q-GL Cat.1 modem).
-Built with nRF Connect SDK v2.6.1 on the `nrf52840dk_nrf52840` board definition plus an overlay. Logs go out over SEGGER RTT through the J-Link, so no UART adapter is needed.
+Built with nRF Connect SDK v2.6.1 for our own board definition, `mg8_nrf52840` (in [boards/arm/mg8_nrf52840](boards/arm/mg8_nrf52840)). Logs go out over SEGGER RTT through the J-Link, so no UART adapter is needed.
 
-The firmware powers up the modem, queries it, waits for network registration and then runs an AT console over RTT. LTE data is confirmed working (see Status).
+At boot the firmware:
+1. reports the external flash
+2. starts BLE advertising and scanning
+3. powers up the modem, queries it and waits for network registration
+4. runs an AT console over RTT
+
+Every part of the board has been checked (see Status).
 
 ## Build, flash, log
 
 ```powershell
-.\build.ps1 -Pristine                    # NCS 2.6.1 toolchain at C:\ncs
-nrfjprog -f nrf52 --program build\zephyr\zephyr.hex --sectorerase --verify
-nrfjprog -f nrf52 --reset
+.\build.ps1 -Pristine                    # NCS 2.6.1 toolchain at C:\ncs, board mg8_nrf52840
+.\tools\flash.ps1                        # clean modem shutdown, program, verify, reset
 ```
+
+`build.ps1` also takes `-BuildDir <dir>` and `-CMakeArgs '-DCONFIG_X=y'` for test variants. `tools\flash.ps1` refuses to touch a locked chip; see [tools/README.md](tools/README.md) for how it works and why it avoids `nrfjprog` while the firmware runs.
 
 Logs and AT console, either:
 - J-Link RTT Viewer (Device `NRF52840_XXAA`, SWD, RTT channel 0): type AT commands into it.
 - `JLinkGDBServerCL.exe -device NRF52840_XXAA -if SWD -speed 4000 -nohalt -noir -nogui -port 2331 -RTTTelnetPort 19021`, then `telnet localhost 19021`.
 
-Each typed line goes to the modem followed by `\r`; to send raw bytes that need `\n`, use `AT+QISENDEX` with hex. The function button power-cycles the modem (clean `AT+QPOWD` first), re-runs the query and returns to the console.
+Each typed line goes to the modem followed by `\r`; to send raw bytes that need `\n`, use `AT+QISENDEX` with hex. Lines starting with `!` are handled by the firmware:
+
+| Command | Does |
+|---|---|
+| `!on` | Power-cycle the modem (clean `AT+QPOWD` first), query it, wait for registration |
+| `!off` | Clean modem shutdown and supply off |
+| `!flash` | Erase the last 4 KB sector of the W25Q64, write 256 bytes, read back and compare |
+| `!ble` | BLE scan summary (also printed every 30 s) |
+| `!help` | List these |
+
+The function button does the same as `!on`.
 
 ## Hardware
 
@@ -28,8 +45,9 @@ Each typed line goes to the modem followed by `\r`; to send raw bytes that need 
 | Modem bands (from `AT+QCFG="band"`) | LTE B1, 2, 3, 4, 5, 7, 8, 12, 13, 18, 19, 20, 25, 26, 28, 34, 38, 39, 40, 41, 66 |
 | Level shifter | 8-channel auto-direction shifter (TXS0108E type, marked `YF08E`) on the main board. Its OE follows the modem's VDD_EXT, so the UART lines only work while the modem is on |
 | Modem supply | 3.8 V buck from USB 5 V, enabled by the nRF (not from the nRF's REGOUT0) |
-| Flash | Winbond W25Q64JV, 8 MB, SPI |
+| Flash | Winbond W25Q64JV (JEDEC ID `ef 40 17`), 8 MB, SPI on SPIM2 at 8 MHz |
 | nRF supply | Internal REGOUT0 LDO at 3.0 V (no external LDO, no DC/DC inductors) |
+| Clocks | 32 MHz crystal, and a 32.768 kHz crystal on P0.00/P0.01 (fitted, used by the firmware) |
 | USB | Power only, no data lines |
 | FCC ID | 2ABU6-MG8 (the FCC test build lists US bands only; production units carry the -GL modem) |
 
@@ -58,12 +76,12 @@ From the board's design documentation, confirmed on hardware where marked.
 | UART DCD (from modem) | P0.22 | | No |
 | UART RI (from modem) | P0.20 | | No |
 | Modem PSM_INT | P0.17 | Through the level shifter | No |
-| Flash CS | P1.01 | W25Q64JV | No |
-| Flash CLK | P1.04 | | No |
-| Flash DO (MISO) | P1.02 | | No |
-| Flash DIO (MOSI) | P1.06 | | No |
+| Flash CS | P1.01 | W25Q64JV | Yes (JEDEC ID, erase / write / read back) |
+| Flash CLK | P1.04 | | Yes |
+| Flash DO (MISO) | P1.02 | | Yes |
+| Flash DIO (MOSI) | P1.06 | | Yes |
 | Accelerometer SCL / SDA / INT1 / INT2 | P0.02 / P0.29 / P0.28 / P0.03 | Not fitted on this board | No |
-| 32 kHz crystal | P0.00 / P0.01 | Firmware uses the RC oscillator for now | No |
+| 32.768 kHz crystal | P0.00 / P0.01 | LFCLKSTAT source = Xtal, RTC1 counts 32768/s | Yes |
 | Reset | P0.18 | Pad R / T10 | No |
 
 P0.13 and P0.15 also go to the T5 / T6 test pads (labelled TX / RX on the board). They are **not** a debug UART on this board: driving them controls the modem's reset and PWRKEY.
@@ -91,13 +109,14 @@ Useful measurement points with the modem on: VDD_3.8V ~3.8 V, VDD_EXT ~1.8 V (0 
 ## Pitfalls (each of these happened on the first unit)
 
 1. **Connecting a J-Link to a stock MG8 erases it.** Minew's firmware locks the chip; J-Link's nRF52 connect script unsecures it automatically, which mass-erases the flash, even with `-NoGui 1`.
-2. **No DC/DC inductors.** The DK board definition enables both DC/DC converters (`BOARD_ENABLE_DCDC`, `BOARD_ENABLE_DCDC_HV`). On the MG8 that collapses VDD to a jumping ~2.3 V and the chip browns out in a loop: no LED, erratic SWD, erases never finish. `prj.conf` disables both. Do not remove that.
+2. **No DC/DC inductors.** The nRF52840 DK board definition enables both DC/DC converters. On the MG8 that collapses VDD to a jumping ~2.3 V and the chip browns out in a loop: no LED, erratic SWD, erases never finish. The `mg8_nrf52840` board never selects `SOC_DCDC_NRF52X` / `SOC_DCDC_NRF52X_HV`, and `src/main.c` has an `#error` if either is on. The boot log prints `DCDCEN 0/0`. Never build this firmware for the DK board.
 3. **Legacy APPROTECT.** This AAD0 chip uses the old scheme: UICR.APPROTECT `0xFF` = open, anything else locks. Never write `0x5A` (the newer revisions' "HwDisabled"); it locks this chip. The firmware leaves APPROTECT alone.
 4. **REGOUT0.** The erased default is 1.8 V, too low for the LEDs and flash. The firmware writes UICR.REGOUT0 = 3.0 V (`0xFFFFFFFC`) on boot and resets once.
 5. **Never push-pull drive unknown pins.** REGOUT0 can supply ~25 mA in total. All pins the firmware drives now are known from the pin map.
 6. **Pull-ups on the modem control pins assert them.** RESET, PWRKEY and W_DISABLE# go through N-MOSFETs with gate pull-downs: a pull-up on P0.13 / P0.31 holds the modem in reset or airplane mode. Drive them low explicitly.
 7. `nrfjprog --recover` fails on a locked chip ("Detected CPU core ... does match expected"). Use a J-Link Commander `connect` instead, which unsecures automatically.
-8. **An nRF reset cuts the modem's supply** (P1.09 drops) without `AT+QPOWD`. Not fixed yet.
+8. **An nRF reset cuts the modem's supply** (P1.09 drops) without `AT+QPOWD`. For flashing and debugger resets, `tools\flash.ps1` asks the firmware for a clean shutdown first (GPREGRET2 mailbox). Watchdog, fault and power-loss resets still cut it uncleanly.
+9. **`nrfjprog` halts the CPU on every connect**, and with BLE running a halt makes the radio scheduler assert and reset the chip. Don't poke a running board with `nrfjprog --memrd`/`--memwr`. Use J-Link Commander, which reads and writes memory without halting.
 
 ## Recovering a soft-bricked unit
 
@@ -115,5 +134,8 @@ If VDD sits at a jumping ~2.2–2.4 V and SWD is unreliable (firmware with DC/DC
 - SIM 1 (IMSI 204-04, Vodafone NL IoT): rejected by every UK network with EMM cause #15 (subscription, not hardware).
 - SIM 2 (ICCID 8945...): registered roaming on Three UK (23420), LTE band 1, RSRP -111 dBm indoors with the case open. APN `cmnbiot` set automatically.
 - Network use verified through the modem's own IP stack: `AT+QPING` 8.8.8.8 4/4, DNS (`AT+QIDNSGIP`), HTTP GET 200 (`AT+QHTTPGET`), TCP round trip to an echo server (`AT+QIOPEN` / `AT+QISENDEX` / `AT+QIRD`). Public IP exits via the SIM provider's gateway in Frankfurt.
-- Not tested yet: BLE, W25Q64 flash.
-- Next: clean modem shutdown on nRF reset, then port the hub logic (C10 tag scanning over BLE, upload over `AT+QIOPEN` TCP).
+- W25Q64 flash: JEDEC ID `ef 40 17`, 8 MB from SFDP. Erasing a 4 KB sector takes 55 ms, writing 256 bytes 1 ms, and the data reads back identical. The first bytes of the chip (`78 56 34 12 01 ff ...`) are left over from Minew's firmware.
+- BLE: the passive scan hears ~20 devices in 30 s, so the receiver works. The board advertises as `MG8-bringup`, non-connectable, from a random static address.
+- 32.768 kHz crystal: fitted and running.
+- Clean modem shutdown before flashing: works, about 5 s.
+- Next: port the hub logic (C10 tag scanning over BLE, upload over `AT+QIOPEN` TCP).

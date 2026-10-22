@@ -1,0 +1,5 @@
+# Minew MG8 LTE gateway (nRF52840 + Quectel EG916Q-GL)
+
+config BOARD_MG8_NRF52840
+	bool "Minew MG8 nRF52840"
+	depends on SOC_NRF52840_QIAA

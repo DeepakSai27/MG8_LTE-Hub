@@ -1,0 +1,21 @@
+/* Minew MG8 pin control */
+
+&pinctrl {
+	/* W25Q64JV external flash */
+	spi2_default: spi2_default {
+		group1 {
+			psels = <NRF_PSEL(SPIM_SCK, 1, 4)>,
+				<NRF_PSEL(SPIM_MISO, 1, 2)>,
+				<NRF_PSEL(SPIM_MOSI, 1, 6)>;
+		};
+	};
+
+	spi2_sleep: spi2_sleep {
+		group1 {
+			psels = <NRF_PSEL(SPIM_SCK, 1, 4)>,
+				<NRF_PSEL(SPIM_MISO, 1, 2)>,
+				<NRF_PSEL(SPIM_MOSI, 1, 6)>;
+			low-power-enable;
+		};
+	};
+};

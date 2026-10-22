@@ -2,3 +2,4 @@ build/
 
 # Vendor documents (Minew, under NDA) never go in this repo
 *.pdf
+build*/

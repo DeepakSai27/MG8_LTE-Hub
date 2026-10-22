@@ -1,0 +1,116 @@
+/*
+ * Minew MG8 LTE gateway: nRF52840 (aQFN73) with a Quectel EG916Q-GL modem on a daughterboard.
+ * Pin map and how each pin was confirmed: README.md.
+ *
+ * The modem is driven directly by the application (src/main.c): 3.8 V enable P1.09, PWRKEY P0.15,
+ * RESET P0.13, W_DISABLE# P0.31 and its UART on P0.14 (TX) / P0.21 (RX). No Zephyr driver claims
+ * those pins.
+ */
+
+/dts-v1/;
+#include <nordic/nrf52840_qiaa.dtsi>
+#include "mg8_nrf52840-pinctrl.dtsi"
+#include <zephyr/dt-bindings/input/input-event-codes.h>
+
+/ {
+	model = "Minew MG8 nRF52840";
+	compatible = "minew,mg8-nrf52840";
+
+	chosen {
+		zephyr,sram = &sram0;
+		zephyr,flash = &flash0;
+		zephyr,code-partition = &slot0_partition;
+	};
+
+	/* One RGB LED, common anode to VDD */
+	leds {
+		compatible = "gpio-leds";
+		led_red: led_0 {
+			gpios = <&gpio0 8 GPIO_ACTIVE_LOW>;
+			label = "Red LED";
+		};
+		led_green: led_1 {
+			gpios = <&gpio0 6 GPIO_ACTIVE_LOW>;
+			label = "Green LED";
+		};
+		led_blue: led_2 {
+			gpios = <&gpio0 12 GPIO_ACTIVE_LOW>;
+			label = "Blue LED";
+		};
+	};
+
+	buttons {
+		compatible = "gpio-keys";
+		button0: button_0 {
+			gpios = <&gpio0 4 (GPIO_PULL_UP | GPIO_ACTIVE_LOW)>;
+			label = "Function button";
+			zephyr,code = <INPUT_KEY_0>;
+		};
+	};
+
+	aliases {
+		led0 = &led_red;
+		led1 = &led_green;
+		led2 = &led_blue;
+		sw0 = &button0;
+		spi-flash0 = &w25q64;
+	};
+};
+
+/* P0.09 / P0.10 are not used for NFC */
+&uicr {
+	nfct-pins-as-gpios;
+};
+
+&gpiote {
+	status = "okay";
+};
+
+&gpio0 {
+	status = "okay";
+};
+
+&gpio1 {
+	status = "okay";
+};
+
+&spi2 {
+	compatible = "nordic,nrf-spim";
+	status = "okay";
+	pinctrl-0 = <&spi2_default>;
+	pinctrl-1 = <&spi2_sleep>;
+	pinctrl-names = "default", "sleep";
+	cs-gpios = <&gpio1 1 GPIO_ACTIVE_LOW>;
+
+	/* Size and layout are read from the chip's SFDP tables (CONFIG_SPI_NOR_SFDP_RUNTIME) */
+	w25q64: w25q64jv@0 {
+		compatible = "jedec,spi-nor";
+		reg = <0>;
+		spi-max-frequency = <8000000>;
+	};
+};
+
+&flash0 {
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		boot_partition: partition@0 {
+			label = "mcuboot";
+			reg = <0x00000000 0x0000C000>;
+		};
+		slot0_partition: partition@c000 {
+			label = "image-0";
+			reg = <0x0000C000 0x00076000>;
+		};
+		slot1_partition: partition@82000 {
+			label = "image-1";
+			reg = <0x00082000 0x00076000>;
+		};
+		storage_partition: partition@f8000 {
+			label = "storage";
+			reg = <0x000f8000 0x00008000>;
+		};
+	};
+};

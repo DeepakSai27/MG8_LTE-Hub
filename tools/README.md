@@ -11,6 +11,23 @@ $jlink = 'C:\Program Files\SEGGER\JLink_V818\JLink.exe'
 
 **Any script with `connect` mass-erases a locked chip.** A stock MG8 with Minew firmware is locked, so the first connect wipes it. Only `vtref.jlink` is safe on a stock unit.
 
+## Flashing: `flash.ps1`
+
+```powershell
+..\build.ps1
+.\flash.ps1                      # or -Hex <file>, -TimeoutS <s>
+```
+
+1. Reads the lock state over raw SWD (nRF CTRL-AP APPROTECTSTATUS) without connecting to the CPU. A locked chip is refused, so nothing is erased.
+2. Writes `0xA5` to `GPREGRET2` through J-Link Commander. The firmware sends `AT+QPOWD`, switches the modem's 3.8 V supply off, and answers `0x5A` after about 5 s.
+3. Programs with `nrfjprog --sectorerase --verify` (retries once), then resets.
+
+Without step 2, the reset at the end of a flash cuts the modem's supply while it is running.
+
+**`nrfjprog` halts the CPU every time it connects.** With BLE running, a halt makes Nordic's radio scheduler (MPSL) assert, and the chip resets, which also cuts the modem's supply. Use J-Link Commander (`connect` does not halt) or the RTT console for anything done while the firmware runs, and keep `nrfjprog` for programming.
+
+Now that the modem pins are known, the pin-probing scripts below act on the modem as well: a pull-up on P0.13 holds it in reset, and one on P0.31 puts it in airplane mode. They are only needed for new boards.
+
 | Script | What it does | Changes the chip? |
 |---|---|---|
 | `vtref.jlink` | Target voltage only. ~3.0 V steady = our firmware, ~1.8 V steady = blank, jumping ~2.3 V = DC/DC brown-out loop | No |

@@ -1,6 +1,6 @@
 # Builds the MG8 bring-up firmware with the nRF Connect SDK v2.6.1 toolchain.
-# Usage: .\build.ps1 [-Pristine]
-param([switch]$Pristine)
+# Usage: .\build.ps1 [-Pristine] [-BuildDir build] [-CMakeArgs '-DCONFIG_X=y', ...]
+param([switch]$Pristine, [string]$BuildDir = 'build', [string[]]$CMakeArgs = @())
 
 $toolchain = 'C:\ncs\toolchains\cf2149caf2'
 $env:PATH = @(
@@ -18,8 +18,9 @@ $env:ZEPHYR_BASE = 'C:\ncs\v2.6.1\zephyr'
 
 Push-Location $PSScriptRoot
 try {
-    $args = @('build', '-b', 'nrf52840dk_nrf52840', '-d', 'build', '.')
+    $args = @('build', '-b', 'mg8_nrf52840', '-d', $BuildDir, '.')
     if ($Pristine) { $args += @('-p', 'always') }
+    if ($CMakeArgs) { $args += @('--') + $CMakeArgs }
     & west @args
     exit $LASTEXITCODE
 }

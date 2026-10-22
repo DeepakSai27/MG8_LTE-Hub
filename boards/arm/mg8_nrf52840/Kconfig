@@ -1,0 +1,4 @@
+# Minew MG8 LTE gateway
+#
+# The MG8 has no DC/DC inductors, so unlike the nRF52840 DK this board never selects
+# SOC_DCDC_NRF52X or SOC_DCDC_NRF52X_HV. Enabling either browns the chip out in a loop.

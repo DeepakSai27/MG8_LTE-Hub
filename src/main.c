@@ -16,7 +16,11 @@
  * All output goes to SEGGER RTT (channel 0). After the start-up query the firmware becomes an AT
  * console: a line typed into RTT channel 0 (J-Link RTT Viewer, or telnet localhost 19021) is sent
  * to the modem, and everything the modem prints, including URCs, is copied back to RTT.
+ * Lines starting with '!' are handled locally: !on, !off, !flash, !ble, !help.
  * Press the button to power-cycle and query again.
+ *
+ * A debugger can ask for a clean modem shutdown before it resets or reflashes the chip: write
+ * SHUTDOWN_REQUEST to NRF_POWER->GPREGRET2 and wait for SHUTDOWN_DONE (tools/flash.ps1 does this).
  */
 
 #include <string.h>
@@ -25,6 +29,13 @@
 #include <SEGGER_RTT.h>
 #include <hal/nrf_gpio.h>
 #include <nrf.h>
+
+#include "board_tests.h"
+
+/* The MG8 has no DC/DC inductors: either converter browns the chip out in a loop */
+#if defined(CONFIG_SOC_DCDC_NRF52X) || defined(CONFIG_SOC_DCDC_NRF52X_HV)
+#error "DC/DC must stay off on the MG8 (build for board mg8_nrf52840)"
+#endif
 
 #define PIN(port, n) NRF_GPIO_PIN_MAP(port, n)
 
@@ -46,6 +57,15 @@
 #define PWRKEY_PULSE_MS	 1000
 #define MODEM_BOOT_WAIT_S 20
 #define AT_REPLY_WAIT_MS 300
+
+/* Debugger mailbox in GPREGRET2 (8 bits, kept across resets, unused by Zephyr and NCS here) */
+#define SHUTDOWN_REQUEST 0xA5
+#define SHUTDOWN_DONE	 0x5A
+
+static bool shutdown_requested(void)
+{
+	return NRF_POWER->GPREGRET2 == SHUTDOWN_REQUEST;
+}
 
 static uint8_t uart_tx_buf[32];
 static uint8_t uart_rx_buf[512];
@@ -236,7 +256,12 @@ static void modem_wait_registered(int seconds)
 			modem_command("AT+QCSQ\r", 500);
 			return;
 		}
-		k_msleep(10000 - 600);
+		for (int i = 0; i < 9; i++) {
+			if (shutdown_requested()) {
+				return;
+			}
+			k_msleep(1000);
+		}
 	}
 	printk("Not registered after %d s\n", seconds);
 	modem_command("AT+QNWINFO\r", 500);
@@ -301,7 +326,7 @@ static bool modem_power_on(void)
 
 /*
  * The console uses the legacy UART0 (no EasyDMA) so every received byte can be picked up as it
- * arrives. Its RX FIFO holds 6 bytes (~0.5 ms at 115200), so the main loop polls without sleeping.
+ * arrives. Its RX FIFO holds 6 bytes (~0.5 ms at 115200), so the main loop polls every ~0.1 ms.
  * UARTE1 (uart_exchange) uses the same pins, so the console is stopped while it runs.
  */
 static void console_start(void)
@@ -379,13 +404,45 @@ static void console_send(const char *line, size_t len)
 	}
 }
 
+static void modem_restart(void)
+{
+	if (modem_power_on()) {
+		modem_query();
+		modem_wait_registered(120);
+	}
+}
+
+/* Shuts the modem down cleanly and tells the debugger it may reset the chip */
+static void modem_shutdown(void)
+{
+	led_set(false, false, false);
+	modem_power_off();
+	printk("Modem off\n");
+}
+
+static void handle_local_command(const char *line)
+{
+	if (strcmp(line, "!on") == 0) {
+		modem_restart();
+	} else if (strcmp(line, "!off") == 0) {
+		modem_shutdown();
+	} else if (strcmp(line, "!flash") == 0) {
+		flash_test_write();
+	} else if (strcmp(line, "!ble") == 0) {
+		ble_test_report();
+	} else {
+		printk("Local commands: !on (power-cycle modem), !off (clean modem shutdown), "
+		       "!flash (flash write test), !ble (BLE scan summary)\n");
+	}
+}
+
 static void console_run(void)
 {
 	static char line[128];
 	size_t len = 0;
 	uint32_t idle = 0;
 
-	printk("\n--- AT console: type a command into RTT channel 0 ---\n");
+	printk("\n--- AT console: type a command into RTT channel 0 (!help for local commands) ---\n");
 	console_start();
 	for (;;) {
 		console_receive();
@@ -395,21 +452,35 @@ static void console_run(void)
 
 		for (unsigned int i = 0; i < n; i++) {
 			if (in[i] == '\r' || in[i] == '\n') {
-				if (len > 0) {
+				if (len > 0 && line[0] == '!') {
+					line[len] = '\0';
+					printk("> %s\n", line);
+					console_stop();
+					handle_local_command(line);
+					console_start();
+				} else if (len > 0) {
 					console_send(line, len);
-					len = 0;
 				}
-			} else if (len < sizeof(line)) {
+				len = 0;
+			} else if (len < sizeof(line) - 1) {
 				line[len++] = in[i];
 			}
 		}
 
 		/* A reply without a trailing newline still shows up after ~50 ms of quiet */
-		if (modem_line_len > 0 && ++idle > 5000) {
+		if (modem_line_len > 0 && ++idle > 400) {
 			console_flush();
 		}
 		if (modem_line_len == 0) {
 			idle = 0;
+		}
+
+		if (shutdown_requested()) {
+			printk("\nDebugger asked for a modem shutdown\n");
+			console_stop();
+			modem_shutdown();
+			NRF_POWER->GPREGRET2 = SHUTDOWN_DONE;
+			console_start();
 		}
 
 		if (!nrf_gpio_pin_read(BUTTON)) {
@@ -418,14 +489,13 @@ static void console_run(void)
 			while (!nrf_gpio_pin_read(BUTTON)) {
 				k_msleep(10);
 			}
-			if (modem_power_on()) {
-				modem_query();
-				modem_wait_registered(120);
-			}
+			modem_restart();
 			printk("\n--- AT console ---\n");
 			console_start();
 		}
-		k_busy_wait(10);
+
+		/* Short enough for the 6-byte RX FIFO (~0.5 ms at 115200), and lets the BLE threads run */
+		k_usleep(100);
 	}
 }
 
@@ -437,14 +507,21 @@ int main(void)
 	uint32_t reset_reason = NRF_POWER->RESETREAS;
 
 	NRF_POWER->RESETREAS = reset_reason;
+	NRF_POWER->GPREGRET2 = 0;
 
 	/* Gives the RTT host time to attach before the first output */
 	led_set(false, false, true);
 	k_msleep(3000);
 
 	printk("\n*** MG8 bring-up (%s %s) ***\n", __DATE__, __TIME__);
-	printk("RESETREAS 0x%08x, UICR REGOUT0 0x%08x, APPROTECT 0x%08x\n", reset_reason,
-	       NRF_UICR->REGOUT0, NRF_UICR->APPROTECT);
+	printk("RESETREAS 0x%08x, UICR REGOUT0 0x%08x, APPROTECT 0x%08x, DCDCEN %u/%u\n",
+	       reset_reason, NRF_UICR->REGOUT0, NRF_UICR->APPROTECT, NRF_POWER->DCDCEN,
+	       NRF_POWER->DCDCEN0);
+	/* LFCLKSTAT: bit 16 = running, bits 1:0 = source (0 RC, 1 crystal, 2 synthesized) */
+	printk("LFCLKSTAT 0x%08x\n", NRF_CLOCK->LFCLKSTAT);
+
+	flash_test_info();
+	ble_test_start();
 
 	if (modem_power_on()) {
 		modem_query();
