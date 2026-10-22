@@ -158,6 +158,12 @@ int main(void)
 			continue;
 		}
 
+		if (modem_is_stuck()) {
+			LOG_WRN("Modem stopped answering, power-cycling it");
+			modem_power_off();
+			continue;
+		}
+
 		/* Registration and PDP context: often while down, once a minute while up */
 		if (now - last_network_check >= (network_ok ? NETWORK_RECHECK_MS : NETWORK_CHECK_MS)) {
 			last_network_check = now;

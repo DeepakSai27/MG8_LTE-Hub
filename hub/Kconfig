@@ -20,12 +20,12 @@ config HUB_TAG_MIN_RSSI
 
 config HUB_LOG_NEARBY
 	bool "Log every named or Eddystone BLE device once (debug)"
-	default y
+	default n
 	help
-	  Shows what nearby tags actually advertise. Turn off once tag discovery works.
+	  Shows what nearby tags actually advertise. Turn on to debug tag discovery.
 
 config HUB_WATCH_ADDR_PREFIX
-	string "Log raw advertising data of addresses starting with this (debug)"
+	string "Log raw advertising data of addresses starting with these, comma-separated (debug)"
 	depends on HUB_LOG_NEARBY
 	default ""
 	help

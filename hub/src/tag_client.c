@@ -26,6 +26,13 @@ LOG_MODULE_REGISTER(tag_client, LOG_LEVEL_INF);
 /* A download that has not finished by then is dropped */
 #define CONNECTION_TIMEOUT K_SECONDS(60)
 
+/*
+ * A tag that has handed everything over can still come forward, answer the handshake and then
+ * send nothing without disconnecting. Without this it would block every other tag for
+ * CONNECTION_TIMEOUT.
+ */
+#define FIRST_PACKET_TIMEOUT K_SECONDS(5)
+
 static struct bt_conn *conn;
 static uint16_t svc_end;
 static uint16_t handshake_handle;
@@ -77,6 +84,15 @@ static void timeout_handler(struct k_work *work)
 	}
 }
 
+static void first_packet_handler(struct k_work *work)
+{
+	if (conn != NULL && packets == 0) {
+		stop_and_disconnect("no data within 5 s of the start command");
+	}
+}
+
+static K_WORK_DELAYABLE_DEFINE(first_packet_work, first_packet_handler);
+
 /*
  * The tag sends handshake and data as indications (the ESP32 hub writes 2 to the CCC) and only
  * sends the next packet after the hub confirms the previous one; Zephyr confirms on return.
@@ -103,6 +119,7 @@ static uint8_t notify_cb(struct bt_conn *c, struct bt_gatt_subscribe_params *par
 		LOG_INF("Tag handshake: mac %s, fw %s, %d mV, up %lld ms", handshake.mac,
 			handshake.firmware, handshake.battery, handshake.uptime_ms);
 		write_u16(data_handle, HUB_DATA_TRANSFER_START);
+		k_work_reschedule(&first_packet_work, FIRST_PACKET_TIMEOUT);
 	} else if (params->value_handle == data_handle) {
 		if (!handshake_ok) {
 			stop_and_disconnect("data before handshake");
@@ -114,6 +131,7 @@ static uint8_t notify_cb(struct bt_conn *c, struct bt_gatt_subscribe_params *par
 			LOG_DBG("Empty data packet, ignored");
 			return BT_GATT_ITER_CONTINUE;
 		}
+		k_work_cancel_delayable(&first_packet_work);
 		packets++;
 		records += n;
 		LOG_INF("Packet %d: %d records", packets, n);
@@ -129,9 +147,18 @@ static void data_subscribed(struct bt_conn *c, uint8_t err, struct bt_gatt_subsc
 		stop_and_disconnect("could not enable data indications");
 		return;
 	}
-	uint16_t free_records = upload_free_records();
+	/*
+	 * Keep one packet in reserve: tags have been seen sending one packet more than offered
+	 * (99 records for 96), and a packet that does not fit in the queue would be lost because
+	 * the tag deletes records once the hub confirms them.
+	 */
+	int free_records = upload_free_records() - TAG_RECORDS_PER_PACKET;
 
-	LOG_INF("Indications on, offering %u records", free_records);
+	if (free_records <= 0) {
+		stop_and_disconnect("upload queue full");
+		return;
+	}
+	LOG_INF("Indications on, offering %d records", free_records);
 	write_u16(handshake_handle, free_records);
 }
 
@@ -259,6 +286,7 @@ static void disconnected(struct bt_conn *c, uint8_t reason)
 	LOG_INF("Tag disconnected (0x%02x): %d packets, %d records, %d items waiting", reason,
 		packets, records, upload_items_waiting());
 	k_work_cancel_delayable(&timeout_work);
+	k_work_cancel_delayable(&first_packet_work);
 	bt_conn_unref(conn);
 	conn = NULL;
 	start_scan();
@@ -297,6 +325,26 @@ static bool find_eddystone(struct bt_data *data, void *user_data)
 	return true;
 }
 
+/* CONFIG_HUB_WATCH_ADDR_PREFIX is a comma-separated list of address prefixes */
+static bool watched(const char *addr_str)
+{
+	const char *list = CONFIG_HUB_WATCH_ADDR_PREFIX;
+
+	while (*list != '\0') {
+		const char *end = strchr(list, ',');
+		size_t len = (end != NULL) ? (size_t)(end - list) : strlen(list);
+
+		if (len > 0 && strncasecmp(addr_str, list, len) == 0) {
+			return true;
+		}
+		if (end == NULL) {
+			break;
+		}
+		list = end + 1;
+	}
+	return false;
+}
+
 /* Logs each named or Eddystone device once, to find out what a tag actually advertises */
 static void log_nearby(const bt_addr_le_t *addr, int8_t rssi, uint8_t type,
 		       struct net_buf_simple *ad, const char *name)
@@ -310,18 +358,37 @@ static void log_nearby(const bt_addr_le_t *addr, int8_t rssi, uint8_t type,
 	bt_data_parse(ad, find_eddystone, &eddystone);
 	net_buf_simple_restore(ad, &state);
 
-	/* A watched address is logged with its raw advertising data, every 5 s at most */
+	/*
+	 * Watched addresses (comma-separated prefixes) are logged with their raw advertising data,
+	 * every 5 s at most per address and report type, so one device cannot hide another
+	 */
 	char addr_str[BT_ADDR_LE_STR_LEN];
-	static int64_t last_watch_log;
 
 	bt_addr_le_to_str(addr, addr_str, sizeof(addr_str));
-	if (strlen(CONFIG_HUB_WATCH_ADDR_PREFIX) > 0 &&
-	    strncasecmp(addr_str, CONFIG_HUB_WATCH_ADDR_PREFIX,
-			strlen(CONFIG_HUB_WATCH_ADDR_PREFIX)) == 0 &&
-	    k_uptime_get() - last_watch_log > 5000) {
-		last_watch_log = k_uptime_get();
-		LOG_INF("Watched %s RSSI %d type %u name \"%s\"", addr_str, rssi, type, name);
-		LOG_HEXDUMP_INF(ad->data, ad->len, "advertising data");
+	if (watched(addr_str)) {
+		static struct {
+			bt_addr_le_t addr;
+			uint8_t type;
+			int64_t last;
+		} recent[8];
+		int slot = -1;
+
+		for (int i = 0; i < ARRAY_SIZE(recent); i++) {
+			if (bt_addr_le_eq(&recent[i].addr, addr) && recent[i].type == type) {
+				slot = i;
+				break;
+			}
+			if (slot < 0 && recent[i].last == 0) {
+				slot = i;
+			}
+		}
+		if (slot >= 0 && (recent[slot].last == 0 || k_uptime_get() - recent[slot].last > 5000)) {
+			bt_addr_le_copy(&recent[slot].addr, addr);
+			recent[slot].type = type;
+			recent[slot].last = k_uptime_get();
+			LOG_INF("Watched %s RSSI %d type %u name \"%s\"", addr_str, rssi, type, name);
+			LOG_HEXDUMP_INF(ad->data, ad->len, "advertising data");
+		}
 	}
 
 	bool log_all = strcmp(CONFIG_HUB_WATCH_ADDR_PREFIX, "*") == 0;

@@ -20,6 +20,9 @@ void modem_power_off(void);
 
 bool modem_is_on(void);
 
+/* Three AT commands in a row timed out: the modem needs a power cycle */
+bool modem_is_stuck(void);
+
 /* Registered (home or roaming) and the PDP context is active. Activates the context if needed. */
 bool modem_network_ready(void);
 

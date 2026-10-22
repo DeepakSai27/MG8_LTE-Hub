@@ -42,6 +42,9 @@ static char line[600];
 static char resp[1024];
 static bool socket_closed;
 
+/* AT commands that timed out in a row: the modem can answer AT yet hang on everything else */
+static int timeouts_in_row;
+
 static void uart_isr(const struct device *dev, void *user_data)
 {
 	uint8_t buf[32];
@@ -187,9 +190,11 @@ static int at_cmd(const char *cmd, int timeout_ms)
 
 	while (read_line(line, sizeof(line), deadline) > 0) {
 		if (strcmp(line, "OK") == 0) {
+			timeouts_in_row = 0;
 			return 0;
 		}
 		if (strcmp(line, "ERROR") == 0 || strncmp(line, "+CME ERROR", 10) == 0) {
+			timeouts_in_row = 0;
 			LOG_WRN("%s -> %s", cmd, line);
 			return -EIO;
 		}
@@ -205,6 +210,7 @@ static int at_cmd(const char *cmd, int timeout_ms)
 			used = sizeof(resp) - 1;
 		}
 	}
+	timeouts_in_row++;
 	LOG_WRN("%s -> timeout", cmd);
 	return -ETIMEDOUT;
 }
@@ -300,6 +306,12 @@ void modem_power_off(void)
 	nrf_gpio_pin_clear(MODEM_PWRKEY);
 	nrf_gpio_pin_clear(MODEM_PWR_EN);
 	socket_closed = true;
+	timeouts_in_row = 0;
+}
+
+bool modem_is_stuck(void)
+{
+	return timeouts_in_row >= 3;
 }
 
 static int cereg_status(void)

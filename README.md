@@ -60,17 +60,24 @@ A port of the ESP32-S3 hub (`exactcomms_esp32-s3-hub`) to the MG8. It downloads 
 **Verified on 2026-10-22:**
 - Tag `EB:C7:43:A2:71:82` (fw 2.0.1) handed over 96 records per session, one session a minute, with new records each time. All items were uploaded and acknowledged.
 - Each session takes 24 packets in about 2.6 s. An upload over LTE takes about 1.2 s.
+- 8 tags (fw 2.0.1-release and 1.6.0-r): 30 sessions in 4 minutes, every upload acknowledged.
+- About 1 in 8 connections drops right after being made (`0x3e`). The tag is picked up again on its next advertisement, and no records are lost.
 
-**Debug:**
-- `CONFIG_HUB_LOG_NEARBY` (on) logs every named or Eddystone BLE device once.
-- `CONFIG_HUB_WATCH_ADDR_PREFIX` logs the raw advertising data of one address. `"*"` logs every device.
+**Robustness:**
+- **A tag that answers the handshake but sends nothing is dropped after 5 s.** Tags with nothing left do this; without the limit, each one would block every other tag for 60 s.
+- **The hub offers one packet less than it can hold.** A tag once sent 99 records when offered 96. A packet that didn't fit would be lost, because the tag deletes records the hub has confirmed.
+- **Three AT commands timing out in a row power-cycle the modem**, instead of waiting 5 minutes without LTE.
+
+**Debug** (off by default):
+- `CONFIG_HUB_LOG_NEARBY` logs every named or Eddystone BLE device once.
+- `CONFIG_HUB_WATCH_ADDR_PREFIX` logs the raw advertising data of a comma-separated list of address prefixes. `"*"` logs every device.
+- A tag only advertises flags and the name `exactcomms_tag`. Its firmware version comes from the handshake.
 
 **Not done yet:**
 - writing tag config (`0x1403`)
 - MQTT remote logs and config, OTA
 - buffering in the W25Q64 flash
 - a watchdog
-- turning the debug logging off
 
 ## Build, flash, log
 
