@@ -62,6 +62,7 @@ A port of the ESP32-S3 hub (`exactcomms_esp32-s3-hub`) to the MG8. It downloads 
 - Each session takes 24 packets in about 2.6 s. An upload over LTE takes about 1.2 s.
 - 8 tags (fw 2.0.1-release and 1.6.0-r): 30 sessions in 4 minutes, every upload acknowledged.
 - About 1 in 8 connections drops right after being made (`0x3e`). The tag is picked up again on its next advertisement, and no records are lost.
+- Production (`prod.conf`, built into `build_hub_prod`): the main server `52.51.154.7:9007` acknowledges every upload with `HTTP/1.1 200 OK`. The hub ID it receives is the MG8's BLE address (`cb:16:4a:4c:7d:57` on the first unit). The last status-ping field is the LTE signal in dBm, where the ESP32 hub sends Wi-Fi RSSI.
 
 **Robustness:**
 - **A tag that answers the handshake but sends nothing is dropped after 5 s.** Tags with nothing left do this; without the limit, each one would block every other tag for 60 s.
