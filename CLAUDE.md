@@ -16,4 +16,6 @@ Read README.md first: it has the verified pin map, the pitfalls, the recovery pr
 - The board is powered from its own USB plug; USB carries no data. Logs come over SEGGER RTT through the J-Link.
 - VTref ~3.0 V steady = healthy with our firmware; ~1.8 V steady = blank chip; jumping ~2.2–2.4 V = DC/DC brown-out loop (see the README recovery section).
 - Flash with `nrfjprog -f nrf52 --program build\zephyr\zephyr.hex --sectorerase --verify`; it never auto-erases a locked chip. `nrfjprog --recover` does not work on this chip.
-- The production board differs from the FCC test photos (no TXS0108E found). Work from photos and measurements of the actual board, not the FCC photos.
+- The verified pin map (modem power, PWRKEY, RESET, UART, flash, LEDs) is in README.md. Don't re-derive it.
+- The TX/RX test pads are P0.13/P0.15, which are the modem's RESET and PWRKEY controls, not a debug UART. Use the RTT AT console instead.
+- Never commit Minew's documents (schematics, manuals, PDFs) to this repo. They're under NDA. Pin information goes in README.md as our own notes only.
