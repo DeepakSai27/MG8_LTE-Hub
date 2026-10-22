@@ -19,4 +19,6 @@ Read README.md first: it has the verified pin map, the pitfalls, the recovery pr
 - Don't use `nrfjprog --memrd`/`--memwr` on a running board. It halts the CPU, BLE then asserts, and the chip resets, which cuts the modem's supply. Read and write memory with J-Link Commander (no halt), or use the RTT console (`!help`).
 - The verified pin map (modem power, PWRKEY, RESET, UART, flash, LEDs) is in README.md. Don't re-derive it.
 - The TX/RX test pads are P0.13/P0.15, which are the modem's RESET and PWRKEY controls, not a debug UART. Use the RTT AT console instead.
+- The hub app is in `hub/`: build it with `.\build.ps1 -App hub`, flash it with `.\tools\flash.ps1 -Hex build_hub\zephyr\zephyr.hex`. Uploads go to a test echo server unless `prod.conf` is used on purpose; never point it at production without the user's go-ahead.
+- When porting from the ESP32 hub, take settings from its `sdkconfig`, not its Kconfig defaults (the tag name is `exactcomms_tag`). Tags send by indication, not notification, and only advertise after hearing the hub beacon. The tag firmware is in `C:\Projects\Exactcomms\Testing REPO's\Exactcomms_Tag`.
 - Never commit Minew's documents (schematics, manuals, PDFs) to this repo. They're under NDA. Pin information goes in README.md as our own notes only.

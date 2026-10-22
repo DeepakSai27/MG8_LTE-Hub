@@ -11,6 +11,67 @@ At boot the firmware:
 
 Every part of the board has been checked (see Status).
 
+## Exactcomms hub app (`hub/`)
+
+A port of the ESP32-S3 hub (`exactcomms_esp32-s3-hub`) to the MG8. It downloads Exactcomms tags over BLE and uploads their records over LTE.
+
+```powershell
+.\build.ps1 -App hub                                   # builds into build_hub
+.\tools\flash.ps1 -Hex build_hub\zephyr\zephyr.hex
+```
+
+**The three devices:**
+
+| Device | Role | Advertises |
+|---|---|---|
+| E2 beacon | Fixed in a location | Eddystone-UID, namespace `AAAA BBBB CCCC DDDD EEEE` |
+| Tag (`exactcomms_tag`) | Carried around; records the beacons it passes | Nothing, until it hears a hub *and* has records stored |
+| Hub (MG8) | Collects from tags, uploads over LTE | Hub beacon: Eddystone-UID, namespace `AAAA BBBB CCCC DDDD AAAA` |
+
+**The download flow** (as the ESP32 hub and tag firmware 2.0.1 implement it):
+1. The hub advertises its beacon.
+2. A tag that hears it, has records and is past its 30 s cool-down advertises `exactcomms_tag` for a short time.
+3. The hub connects and discovers service `0x010B`: handshake `0x1401`, data `0x1402` (config `0x1403` is not used yet).
+4. The hub enables **indications** on both characteristics. The CCC value is 2; with notifications the tag cannot send. The hub then writes its free record count (uint16) to the handshake characteristic.
+5. The tag indicates `mac|fw|battery mV hex|uptime ms hex`. The hub writes `2` to the data characteristic to start.
+6. The tag indicates packets of 4 records. It sends the next one only after the hub confirms the previous one, and deletes what it has handed over. It stops after the offered count and disconnects.
+7. Each packet becomes one upload item: 8 strings `rssi|battery|beacon|tag|fw|YYYY-mm-dd HH:MM:SS|uptime`, the same format as the ESP32 hub.
+
+**Uploads:**
+- The hub opens a TCP connection through the modem (`AT+QIOPEN`/`QISEND`/`QIRD`) for each item. Any reply from the server is the ACK.
+- After 5 failures it moves main → AZ2 → AZ3, and returns to the main server after 120 min.
+- It queues a status ping at start-up and every 15 min.
+- The clock comes from NTP through the modem.
+
+**Test mode (default):**
+- Uploads go to the public echo server `tcpbin.com:4242`, with a newline added so the echo server replies.
+- `hub/prod.conf` holds the production servers. Use them only on purpose: `.\build.ps1 -App hub -CMakeArgs '-DEXTRA_CONF_FILE=prod.conf'`.
+
+**Settings** come from the ESP32 hub's real `sdkconfig`, not its Kconfig defaults:
+- The tag name is `exactcomms_tag`, not the Kconfig default `exactcomms_c10`.
+- The upload queue is 24 items instead of 50, because of RAM.
+
+**LED:**
+- red: no LTE
+- blue: tag connected
+- green: LTE up and last upload OK
+- yellow: LTE up but the last upload failed
+
+**Verified on 2026-10-22:**
+- Tag `EB:C7:43:A2:71:82` (fw 2.0.1) handed over 96 records per session, one session a minute, with new records each time. All items were uploaded and acknowledged.
+- Each session takes 24 packets in about 2.6 s. An upload over LTE takes about 1.2 s.
+
+**Debug:**
+- `CONFIG_HUB_LOG_NEARBY` (on) logs every named or Eddystone BLE device once.
+- `CONFIG_HUB_WATCH_ADDR_PREFIX` logs the raw advertising data of one address. `"*"` logs every device.
+
+**Not done yet:**
+- writing tag config (`0x1403`)
+- MQTT remote logs and config, OTA
+- buffering in the W25Q64 flash
+- a watchdog
+- turning the debug logging off
+
 ## Build, flash, log
 
 ```powershell

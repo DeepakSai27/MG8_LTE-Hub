@@ -1,0 +1,4 @@
+/* The hub talks to the modem through the Zephyr UART driver */
+&uart1 {
+	status = "okay";
+};

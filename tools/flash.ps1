@@ -13,6 +13,11 @@
 # such as a stock MG8, mass-erases it.
 param([string]$Hex = "$PSScriptRoot\..\build\zephyr\zephyr.hex", [int]$TimeoutS = 30)
 
+if (-not (Test-Path $Hex)) {
+    Write-Error "No hex file at $Hex (did the build fail?). Not touching the board."
+    exit 1
+}
+
 $jlink = 'C:\Program Files\SEGGER\JLink_V818\JLink.exe'
 $script = Join-Path $env:TEMP 'mg8_mailbox.jlink'
 

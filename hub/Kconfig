@@ -1,0 +1,91 @@
+# Exactcomms hub on the Minew MG8. Names and defaults follow the ESP32-S3 hub
+# (exactcomms_esp32-s3-hub) where the setting exists there.
+
+menu "MG8 hub"
+
+config HUB_VERSION
+	string "Firmware version reported in the status ping"
+	default "mg8-0.1.0"
+
+config HUB_TAG_NAME
+	string "Advertised name of a tag ready to download"
+	default "exactcomms_tag"
+	help
+	  As the ESP32 hub's sdkconfig and the tag firmware (TAG_DEVICE_NAME). The ESP32 hub's
+	  Kconfig default, exactcomms_c10, is not what the tags use.
+
+config HUB_TAG_MIN_RSSI
+	int "Minimum tag RSSI to connect (dBm)"
+	default -95
+
+config HUB_LOG_NEARBY
+	bool "Log every named or Eddystone BLE device once (debug)"
+	default y
+	help
+	  Shows what nearby tags actually advertise. Turn off once tag discovery works.
+
+config HUB_WATCH_ADDR_PREFIX
+	string "Log raw advertising data of addresses starting with this (debug)"
+	depends on HUB_LOG_NEARBY
+	default ""
+	help
+	  "*" logs every device heard, once each, not only named or Eddystone ones.
+
+config HUB_QUEUE_SIZE
+	int "Upload queue length (items of up to 4 tag records)"
+	default 24
+	help
+	  The ESP32 hub uses 50. Each item is a fixed 3.2 KB slot in RAM, so the MG8 keeps fewer.
+
+config HUB_SERVER_MAIN
+	string "Main upload server (IP or host name)"
+	default "tcpbin.com"
+	help
+	  Defaults to a public TCP echo server for testing. prod.conf sets the production servers.
+
+config HUB_SERVER_AZ2
+	string "First backup upload server"
+	default "tcpbin.com"
+
+config HUB_SERVER_AZ3
+	string "Second backup upload server"
+	default "tcpbin.com"
+
+config HUB_SERVER_PORT
+	int "Upload server TCP port"
+	default 4242
+
+config HUB_UPLOAD_APPEND_NEWLINE
+	bool "Append a newline to every upload"
+	default y
+	help
+	  A line-based echo server only answers (the ACK) once it sees a newline. The production
+	  server does not need one; prod.conf turns this off.
+
+config HUB_SERVER_MAX_RETRIES
+	int "Failed uploads before switching to the next server"
+	default 5
+
+config HUB_MAIN_SERVER_RETRY_MIN
+	int "Minutes on a backup server before trying the main one again"
+	default 120
+
+config HUB_ACK_TIMEOUT_S
+	int "Seconds to wait for the server's reply to an upload"
+	default 10
+
+config HUB_STATUS_PING_MIN
+	int "Status ping interval (minutes)"
+	default 15
+
+config HUB_APN
+	string "LTE APN (empty = the SIM's default)"
+	default ""
+
+config HUB_NTP_SERVER
+	string "NTP server used through the modem"
+	default "pool.ntp.org"
+
+endmenu
+
+source "Kconfig.zephyr"

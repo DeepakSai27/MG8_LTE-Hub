@@ -2,9 +2,9 @@
  * Minew MG8 LTE gateway: nRF52840 (aQFN73) with a Quectel EG916Q-GL modem on a daughterboard.
  * Pin map and how each pin was confirmed: README.md.
  *
- * The modem is driven directly by the application (src/main.c): 3.8 V enable P1.09, PWRKEY P0.15,
- * RESET P0.13, W_DISABLE# P0.31 and its UART on P0.14 (TX) / P0.21 (RX). No Zephyr driver claims
- * those pins.
+ * The modem control pins are driven directly by the applications: 3.8 V enable P1.09, PWRKEY P0.15,
+ * RESET P0.13, W_DISABLE# P0.31. Its UART (P0.14 TX / P0.21 RX) is described as uart1 but left
+ * disabled: the bring-up firmware drives it through registers, the hub app enables it.
  */
 
 /dts-v1/;
@@ -72,6 +72,16 @@
 
 &gpio1 {
 	status = "okay";
+};
+
+/* Quectel EG916Q-GL main UART, 115200 8N1, no flow control */
+&uart1 {
+	compatible = "nordic,nrf-uarte";
+	current-speed = <115200>;
+	pinctrl-0 = <&uart1_default>;
+	pinctrl-1 = <&uart1_sleep>;
+	pinctrl-names = "default", "sleep";
+	status = "disabled";
 };
 
 &spi2 {
