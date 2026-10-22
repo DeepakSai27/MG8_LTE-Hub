@@ -135,7 +135,7 @@ If VDD sits at a jumping ~2.2–2.4 V and SWD is unreliable (firmware with DC/DC
 - SIM 2 (ICCID 8945...): registered roaming on Three UK (23420), LTE band 1, RSRP -111 dBm indoors with the case open. APN `cmnbiot` set automatically.
 - Network use verified through the modem's own IP stack: `AT+QPING` 8.8.8.8 4/4, DNS (`AT+QIDNSGIP`), HTTP GET 200 (`AT+QHTTPGET`), TCP round trip to an echo server (`AT+QIOPEN` / `AT+QISENDEX` / `AT+QIRD`). Public IP exits via the SIM provider's gateway in Frankfurt.
 - W25Q64 flash: JEDEC ID `ef 40 17`, 8 MB from SFDP. Erasing a 4 KB sector takes 55 ms, writing 256 bytes 1 ms, and the data reads back identical. The first bytes of the chip (`78 56 34 12 01 ff ...`) are left over from Minew's firmware.
-- BLE: the passive scan hears ~20 devices in 30 s, so the receiver works. The board advertises as `MG8-bringup`, non-connectable, from a random static address.
+- BLE: the passive scan hears ~20 devices in 30 s, so the receiver works. Advertising as `MG8-bringup` (non-connectable, random static address) shows up in a phone scanner app, so the transmitter works too.
 - 32.768 kHz crystal: fitted and running.
 - Clean modem shutdown before flashing: works, about 5 s.
 - Next: port the hub logic (C10 tag scanning over BLE, upload over `AT+QIOPEN` TCP).
