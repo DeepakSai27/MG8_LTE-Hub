@@ -7,12 +7,18 @@
 
 #include "clock.h"
 #include "modem.h"
+#include "store.h"
 #include "tag_format.h"
 #include "upload.h"
 
 LOG_MODULE_REGISTER(upload, LOG_LEVEL_INF);
 
+/* New items land here; with the flash queue on, the store thread moves them into flash */
 K_MSGQ_DEFINE(upload_queue, TAG_QUEUE_ITEM_SIZE, CONFIG_HUB_QUEUE_SIZE, 4);
+
+static bool flash_queue;
+static K_THREAD_STACK_DEFINE(store_stack, 1536);
+static struct k_thread store_thread;
 
 enum server { MAIN_SERVER, AZ2_SERVER, AZ3_SERVER };
 
@@ -51,14 +57,47 @@ int upload_queue_put(const char *data)
 	return 0;
 }
 
+/* Moves items from RAM to flash, oldest first. Flash erases (~55 ms) stay out of the BLE thread. */
+static void store_loop(void *p1, void *p2, void *p3)
+{
+	static char buf[TAG_QUEUE_ITEM_SIZE];
+
+	for (;;) {
+		k_msgq_get(&upload_queue, buf, K_FOREVER);
+		int err;
+
+		while ((err = store_put(buf)) != 0) {
+			LOG_WRN("Flash queue %s, retrying", err == -ENOMEM ? "full" : "write failed");
+			k_sleep(K_SECONDS(10));
+		}
+	}
+}
+
+void upload_init(void)
+{
+	if (!IS_ENABLED(CONFIG_HUB_FLASH_QUEUE) || store_init() != 0) {
+		LOG_WRN("Upload queue in RAM only (%d items)", CONFIG_HUB_QUEUE_SIZE);
+		return;
+	}
+	flash_queue = true;
+	k_thread_create(&store_thread, store_stack, K_THREAD_STACK_SIZEOF(store_stack), store_loop,
+			NULL, NULL, NULL, K_PRIO_PREEMPT(5), 0, K_NO_WAIT);
+	k_thread_name_set(&store_thread, "store");
+}
+
 int upload_free_records(void)
 {
-	return k_msgq_num_free_get(&upload_queue) * TAG_RECORDS_PER_PACKET;
+	int items = k_msgq_num_free_get(&upload_queue);
+
+	if (flash_queue) {
+		items = MIN(items, store_free() - (int)k_msgq_num_used_get(&upload_queue));
+	}
+	return MAX(items, 0) * TAG_RECORDS_PER_PACKET;
 }
 
 int upload_items_waiting(void)
 {
-	return k_msgq_num_used_get(&upload_queue);
+	return k_msgq_num_used_get(&upload_queue) + (flash_queue ? store_count() : 0);
 }
 
 bool upload_last_sync_ok(void)
@@ -89,7 +128,8 @@ static void record_failure(void)
 
 void upload_process(void)
 {
-	if (k_msgq_peek(&upload_queue, item) != 0) {
+	if (flash_queue ? store_peek(item, TAG_QUEUE_ITEM_SIZE) < 0
+			: k_msgq_peek(&upload_queue, item) != 0) {
 		return;
 	}
 
@@ -124,7 +164,11 @@ void upload_process(void)
 	modem_tcp_close();
 
 	if (err == 0) {
-		k_msgq_get(&upload_queue, item, K_NO_WAIT);
+		if (flash_queue) {
+			store_pop();
+		} else {
+			k_msgq_get(&upload_queue, item, K_NO_WAIT);
+		}
 		ok_count++;
 		retry_attempts = 0;
 		LOG_INF("ACK OK (ok %u, failed %u)", ok_count, fail_count);

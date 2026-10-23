@@ -2,3 +2,20 @@
 &uart1 {
 	status = "okay";
 };
+
+/*
+ * Upload queue in the first half of the W25Q64 (see src/store.c). The rest stays free, e.g. for an
+ * MCUboot secondary slot. The bring-up firmware's !flash test uses the chip's last sector.
+ */
+&w25q64 {
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		hub_queue_partition: partition@0 {
+			label = "hub-queue";
+			reg = <0x00000000 0x00400000>;
+		};
+	};
+};

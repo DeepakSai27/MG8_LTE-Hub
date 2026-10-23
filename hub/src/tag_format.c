@@ -10,8 +10,8 @@
 LOG_MODULE_REGISTER(tag_format, LOG_LEVEL_INF);
 
 struct tag_record {
-	char data[TAG_PACKET_SIZE];
-	char end_data[TAG_PACKET_SIZE];
+	char data[TAG_RECORD_STRING_SIZE];
+	char end_data[TAG_RECORD_STRING_SIZE];
 };
 
 static struct tag_record records[TAG_RECORDS_PER_PACKET];

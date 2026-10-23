@@ -11,6 +11,9 @@
 
 #include <stdint.h>
 
+/* Opens the flash queue (falls back to RAM only without it). Call before tags are downloaded. */
+void upload_init(void);
+
 /* Hub identity used in the status ping, "aa:bb:cc:dd:ee:ff" */
 void upload_set_hub_id(const char *mac);
 

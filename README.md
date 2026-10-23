@@ -41,6 +41,7 @@ A port of the ESP32-S3 hub (`exactcomms_esp32-s3-hub`) to the MG8. It downloads 
 - The hub opens a TCP connection through the modem (`AT+QIOPEN`/`QISEND`/`QIRD`) for each item. Any reply from the server is the ACK.
 - After 5 failures it moves main → AZ2 → AZ3, and returns to the main server after 120 min.
 - It queues a status ping at start-up and every 15 min.
+- The upload queue lives in the first 4 MB of the W25Q64 (`hub_queue_partition`): 4096 slots of 1 KB, about 16,000 records, kept through resets and LTE outages. New items go into an 80-item RAM queue first, and a background thread moves them into flash. Without the flash, the hub falls back to the RAM queue (`CONFIG_HUB_FLASH_QUEUE`).
 - The clock comes from NTP through the modem.
 
 **Test mode (default):**
@@ -49,7 +50,7 @@ A port of the ESP32-S3 hub (`exactcomms_esp32-s3-hub`) to the MG8. It downloads 
 
 **Settings** come from the ESP32 hub's real `sdkconfig`, not its Kconfig defaults:
 - The tag name is `exactcomms_tag`, not the Kconfig default `exactcomms_c10`.
-- The upload queue is 24 items instead of 50, because of RAM.
+- The ESP32 hub keeps its 50-item queue (200 records) in RAM only. The MG8 keeps its queue in flash (see Uploads).
 
 **LED:**
 - red: no LTE
@@ -77,7 +78,6 @@ A port of the ESP32-S3 hub (`exactcomms_esp32-s3-hub`) to the MG8. It downloads 
 **Not done yet:**
 - writing tag config (`0x1403`)
 - MQTT remote logs and config, OTA
-- buffering in the W25Q64 flash
 - a watchdog
 
 ## Build, flash, log

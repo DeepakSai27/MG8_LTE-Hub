@@ -13,4 +13,5 @@ target_sources(app PRIVATE
 	src/tag_format.c
 	src/tag_client.c
 	src/upload.c
+	src/store.c
 )

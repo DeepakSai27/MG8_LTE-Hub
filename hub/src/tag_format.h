@@ -18,7 +18,14 @@
 #define TAG_FIRMWARE_SIZE	 20
 #define TAG_RECORDS_PER_PACKET	 4
 #define TAG_PACKET_SIZE		 400
-#define TAG_QUEUE_ITEM_SIZE	 (TAG_PACKET_SIZE * 8)
+
+/*
+ * Longest upload string: rssi (4) + battery (6) + beacon and tag MACs (17 each) + firmware (20)
+ * + date (23, its buffer size) + tag uptime (31, its buffer size) + 6 '|' = 124 characters.
+ * A queue item is 8 of them, 7 commas and the terminator.
+ */
+#define TAG_RECORD_STRING_SIZE	 125
+#define TAG_QUEUE_ITEM_SIZE	 (TAG_RECORD_STRING_SIZE * 8)
 
 struct tag_handshake {
 	char mac[TAG_MAC_SIZE];

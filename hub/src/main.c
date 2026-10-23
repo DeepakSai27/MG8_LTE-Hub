@@ -106,6 +106,7 @@ int main(void)
 	NRF_POWER->RESETREAS = resetreas;
 	NRF_POWER->GPREGRET2 = 0;
 	upload_set_reset_reason(resetreas);
+	upload_init();
 
 	LOG_INF("MG8 hub %s, RESETREAS 0x%08x, DCDCEN %u/%u", CONFIG_HUB_VERSION, resetreas,
 		NRF_POWER->DCDCEN, NRF_POWER->DCDCEN0);

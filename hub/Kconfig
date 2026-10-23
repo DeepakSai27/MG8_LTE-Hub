@@ -39,10 +39,19 @@ config HUB_WATCH_ADDR_PREFIX
 	  "*" logs every device heard, once each, not only named or Eddystone ones.
 
 config HUB_QUEUE_SIZE
-	int "Upload queue length (items of up to 4 tag records)"
-	default 24
+	int "RAM upload queue length (items of up to 4 tag records)"
+	default 80
 	help
-	  The ESP32 hub uses 50. Each item is a fixed 3.2 KB slot in RAM, so the MG8 keeps fewer.
+	  Each item is a fixed 1000 byte slot. With HUB_FLASH_QUEUE this only holds items on their
+	  way into flash, and limits how many records one tag download can take; without it, it is
+	  the whole queue. The ESP32 hub keeps 50 items (200 records) in RAM.
+
+config HUB_FLASH_QUEUE
+	bool "Keep the upload queue in the external W25Q64 flash"
+	default y
+	help
+	  Uses the hub-queue partition (4 MB, about 16,000 records), kept through resets and LTE
+	  outages. Without the flash the hub falls back to the RAM queue.
 
 config HUB_SERVER_MAIN
 	string "Main upload server (IP or host name)"
