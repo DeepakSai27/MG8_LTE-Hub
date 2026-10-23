@@ -505,6 +505,37 @@ int modem_tcp_send(const void *data, size_t len)
 	return 0;
 }
 
+/* Socket 0's state from AT+QISTATE (2 = connected), or -1 if the modem lists no socket 0 */
+static int socket_state(void)
+{
+	if (at_cmd("AT+QISTATE=1,0", 1000) != 0) {
+		return -1;
+	}
+	char *p = strstr(resp, "+QISTATE: 0,");
+
+	/* +QISTATE: 0,"TCP","<ip>",<port>,<local port>,<state>,... */
+	for (int commas = 0; p != NULL && commas < 5; commas++) {
+		p = strchr(p + 1, ',');
+	}
+	return (p != NULL) ? atoi(p + 1) : -1;
+}
+
+/*
+ * A server that closes right after replying makes the modem report "closed" late, sometimes
+ * after the next connection is already open. Only trust the flag if the socket really is down.
+ */
+static bool socket_really_closed(void)
+{
+	int state = socket_state();
+
+	if (state == 2) {
+		LOG_INF("Ignoring a stale \"closed\" report, the socket is connected");
+		socket_closed = false;
+		return false;
+	}
+	return true;
+}
+
 int modem_tcp_wait_reply(int timeout_ms)
 {
 	int64_t deadline = k_uptime_get() + timeout_ms;
@@ -521,7 +552,7 @@ int modem_tcp_wait_reply(int timeout_ms)
 				return n;
 			}
 		}
-		if (socket_closed) {
+		if (socket_closed && socket_really_closed()) {
 			return -ENOTCONN;
 		}
 		k_msleep(300);
