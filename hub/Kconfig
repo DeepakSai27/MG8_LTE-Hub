@@ -24,6 +24,13 @@ config HUB_LOG_NEARBY
 	help
 	  Shows what nearby tags actually advertise. Turn on to debug tag discovery.
 
+config HUB_LOG_RECORDS
+	bool "Log every downloaded tag record (tag, beacon, RSSI, contact times)"
+	default n
+	help
+	  Production servers only answer "HTTP/1.1 200 OK", so this is the only way to see on the
+	  hub which beacons each tag reported.
+
 config HUB_WATCH_ADDR_PREFIX
 	string "Log raw advertising data of addresses starting with these, comma-separated (debug)"
 	depends on HUB_LOG_NEARBY

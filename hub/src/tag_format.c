@@ -105,6 +105,11 @@ static void parse_record(char *item, const struct tag_handshake *hs, struct tag_
 	format_contact_time(end_delta, end, sizeof(end));
 	format_uptime(hs->uptime_ms, uptime, sizeof(uptime));
 
+	if (IS_ENABLED(CONFIG_HUB_LOG_RECORDS)) {
+		LOG_INF("Record tag %s beacon %s rssi %d start %s end %s", hs->mac, beacon, rssi,
+			start, end);
+	}
+
 	snprintf(rec->data, sizeof(rec->data), "%d|%d|%s|%s|%s|%s|%s", rssi, hs->battery, beacon,
 		 hs->mac, hs->firmware, start, uptime);
 	snprintf(rec->end_data, sizeof(rec->end_data), "%d|%d|%s|%s|%s|%s|%s", rssi, hs->battery,
