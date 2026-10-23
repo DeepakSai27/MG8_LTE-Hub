@@ -26,6 +26,9 @@ bool modem_is_stuck(void);
 /* Registered (home or roaming) and the PDP context is active. Activates the context if needed. */
 bool modem_network_ready(void);
 
+/* Logs SIM state, signal, registration and operator, to see why LTE does not come up */
+void modem_log_network_state(void);
+
 /* Signal in dBm from AT+CSQ, or 0 if unknown */
 int modem_signal_dbm(void);
 

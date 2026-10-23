@@ -342,6 +342,27 @@ bool modem_network_ready(void)
 	return at_cmd("AT+QIACT?", 2000) == 0 && strstr(resp, "+QIACT: 1,1") != NULL;
 }
 
+void modem_log_network_state(void)
+{
+	static const char *const cmds[] = {"AT+CPIN?", "AT+CSQ", "AT+CEREG?", "AT+QNWINFO",
+					   "AT+COPS?", "AT+CEER"};
+	char state[384];
+	size_t used = 0;
+
+	state[0] = '\0';
+	for (size_t i = 0; i < ARRAY_SIZE(cmds) && used < sizeof(state); i++) {
+		int err = at_cmd(cmds[i], 2000);
+		char *nl = strchr(resp, '\n');
+
+		if (nl != NULL) {
+			*nl = '\0';
+		}
+		used += snprintf(state + used, sizeof(state) - used, "%s%s", i > 0 ? ", " : "",
+				 err == 0 ? resp : "error");
+	}
+	LOG_INF("Network: %s", state);
+}
+
 int modem_signal_dbm(void)
 {
 	if (at_cmd("AT+CSQ", 1000) != 0) {

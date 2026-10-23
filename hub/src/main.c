@@ -37,6 +37,7 @@ LOG_MODULE_REGISTER(main, LOG_LEVEL_INF);
 #define NETWORK_CHECK_MS     10000
 #define NETWORK_RECHECK_MS   60000
 #define NETWORK_LOST_RESTART (5 * 60 * 1000)
+#define NETWORK_LOG_MS	     60000
 #define POWER_RETRY_MS	     30000
 #define TIME_RESYNC_MS	     (6 * 3600 * 1000LL)
 #define TIME_RETRY_MS	     60000
@@ -131,6 +132,7 @@ int main(void)
 	int64_t last_power_try = -POWER_RETRY_MS;
 	int64_t last_network_check = -NETWORK_CHECK_MS;
 	int64_t network_lost_since = k_uptime_get();
+	int64_t last_network_log = 0;
 	int64_t last_time_sync = 0;
 	int64_t last_time_try = -TIME_RETRY_MS;
 	int64_t last_ping = 0;
@@ -180,6 +182,10 @@ int main(void)
 					NETWORK_LOST_RESTART / 60000);
 				modem_power_off();
 				continue;
+			}
+			if (!ok && now - last_network_log >= NETWORK_LOG_MS) {
+				last_network_log = now;
+				modem_log_network_state();
 			}
 			network_ok = ok;
 		}
